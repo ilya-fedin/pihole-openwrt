@@ -1,0 +1,130 @@
+--- a/dnsmasq/dnsmasq.c
++++ b/dnsmasq/dnsmasq.c
+@@ -20,6 +20,8 @@
+ #include "dnsmasq.h"
+ #include "../dnsmasq_interface.h"
+ 
++#include <libubus.h>
++
+ struct daemon *daemon;
+ 
+ static volatile pid_t pid = 0;
+@@ -33,6 +35,64 @@ static void fatal_event(struct event_des
+ static int read_event(int fd, struct event_desc *evp, char **msg);
+ static void poll_resolv(int force, int do_reload, time_t now);
+ 
++static struct ubus_context *ubus;
++static struct blob_buf b;
++
++static struct ubus_object_type ubus_object_type = {
++	.name = "dnsmasq",
++};
++
++static struct ubus_object ubus_object = {
++	.name = "dnsmasq",
++	.type = &ubus_object_type,
++};
++
++void ubus_event_bcast(const char *type, const char *mac, const char *ip, const char *name, const char *interface)
++{
++	if (!ubus || !ubus_object.has_subscribers)
++		return;
++
++	blob_buf_init(&b, 0);
++	if (mac)
++		blobmsg_add_string(&b, "mac", mac);
++	if (ip)
++		blobmsg_add_string(&b, "ip", ip);
++	if (name)
++		blobmsg_add_string(&b, "name", name);
++	if (interface)
++		blobmsg_add_string(&b, "interface", interface);
++	ubus_notify(ubus, &ubus_object, type, b.head, -1);
++}
++
++static void set_ubus_listeners(void)
++{
++	if (!ubus)
++		return;
++
++	poll_listen(ubus->sock.fd, POLLIN);
++	poll_listen(ubus->sock.fd, POLLERR);
++	poll_listen(ubus->sock.fd, POLLHUP);
++}
++
++static void check_ubus_listeners()
++{
++	if (!ubus) {
++		ubus = ubus_connect(NULL);
++		if (ubus)
++			ubus_add_object(ubus, &ubus_object);
++		else
++			return;
++	}
++
++	if (poll_check(ubus->sock.fd, POLLIN))
++		ubus_handle_event(ubus);
++
++	if (poll_check(ubus->sock.fd, POLLHUP)) {
++		ubus_free(ubus);
++		ubus = NULL;
++	}
++}
++
+ int main_dnsmasq (int argc, char **argv)
+ {
+   int bind_fallback = 0;
+@@ -931,6 +991,7 @@ int main_dnsmasq (int argc, char **argv)
+       set_dbus_listeners();
+ #endif
+ 
++      set_ubus_listeners();
+ #ifdef HAVE_DHCP
+       if (daemon->dhcp || daemon->relay4)
+ 	{
+@@ -1061,6 +1122,8 @@ int main_dnsmasq (int argc, char **argv)
+       check_dbus_listeners();
+ #endif
+ 
++      check_ubus_listeners();
++
+       check_dns_listeners(now);
+ 
+ #ifdef HAVE_TFTP
+--- a/Makefile
++++ b/Makefile
+@@ -50,8 +50,8 @@
+ # for FTL we need the pthread library
+ # for dnsmasq we need the nettle crypto library and the gmp maths library
+ # We link the two libraries statically. Althougth this increases the binary file size by about 1 MB, it saves about 5 MB of shared libraries and makes deployment easier
+-#LIBS=-pthread -lnettle -lgmp -lhogweed
+-LIBS=-pthread -Wl,-Bstatic -L/usr/local/lib -lhogweed -lgmp -lnettle  -Wl,-Bdynamic
++LIBS=-pthread -lnettle -lgmp -lhogweed -lubox -lubus
++#LIBS=-pthread -Wl,-Bstatic -L/usr/local/lib -lhogweed -lgmp -lnettle  -Wl,-Bdynamic
+ # Flags for compiling with libidn : -lidn
+ # Flags for compiling with libidn2: -lidn2
+ 
+--- a/dnsmasq/dnsmasq.h
++++ b/dnsmasq/dnsmasq.h
+@@ -1415,6 +1415,8 @@ void emit_dbus_signal(int action, struct
+ #  endif
+ #endif
+ 
++void ubus_event_bcast(const char *type, const char *mac, const char *ip, const char *name, const char *interface);
++
+ /* ipset.c */
+ #ifdef HAVE_IPSET
+ void ipset_init(void);
+--- a/dnsmasq/rfc2131.c
++++ b/dnsmasq/rfc2131.c
+@@ -1621,6 +1621,10 @@ static void log_packet(char *type, void
+ 	      daemon->namebuff,
+ 	      string ? string : "",
+ 	      err ? err : "");
++  if (!strcmp(type, "DHCPACK"))
++	  ubus_event_bcast("dhcp.ack", daemon->namebuff, addr ? inet_ntoa(a) : NULL, string ? string : NULL, interface);
++  else if (!strcmp(type, "DHCPRELEASE"))
++	  ubus_event_bcast("dhcp.release", daemon->namebuff, addr ? inet_ntoa(a) : NULL, string ? string : NULL, interface);
+ }
+ 
+ static void log_options(unsigned char *start, u32 xid)

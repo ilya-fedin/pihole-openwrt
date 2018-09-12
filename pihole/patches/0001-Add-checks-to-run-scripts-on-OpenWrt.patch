@@ -1,0 +1,172 @@
+From 2130380ab9727c1e07ce6e0ab48f120c0b90529e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=D0=98=D0=BB=D1=8C=D1=8F=20=D0=A4=D0=B5=D0=B4=D0=B8=D0=BD?=
+ <fedin-ilja2010@ya.ru>
+Date: Wed, 5 Sep 2018 22:20:57 +0400
+Subject: [PATCH 1/2] Add checks to run scripts on OpenWrt
+
+---
+ advanced/Scripts/COL_TABLE  |  9 ++++++++-
+ advanced/Scripts/query.sh   |  8 +++++++-
+ advanced/Scripts/webpage.sh |  6 +++++-
+ gravity.sh                  | 23 +++++++++++++++++------
+ pihole                      |  7 ++++++-
+ 5 files changed, 43 insertions(+), 10 deletions(-)
+
+diff --git a/advanced/Scripts/COL_TABLE b/advanced/Scripts/COL_TABLE
+index 57aab4d..50dd4a6 100644
+--- a/advanced/Scripts/COL_TABLE
++++ b/advanced/Scripts/COL_TABLE
+@@ -1,5 +1,12 @@
++# Check if tput exists
++if command -v tput &> /dev/null; then
++  tputCommand="tput colors"
++else
++  tputCommand="echo 8"
++fi
++
+ # Determine if terminal is capable of showing colours
+-if [[ -t 1 ]] && [[ $(tput colors) -ge 8 ]]; then
++if [[ -t 1 ]] && [[ $(${tputCommand}) -ge 8 ]]; then
+   # Bold and underline may not show up on all clients
+   # If something MUST be emphasised, use both
+   COL_BOLD='[1m'
+diff --git a/advanced/Scripts/query.sh b/advanced/Scripts/query.sh
+index b599aa6..19ba8ec 100644
+--- a/advanced/Scripts/query.sh
++++ b/advanced/Scripts/query.sh
+@@ -20,6 +20,12 @@ exact=""
+ blockpage=""
+ matchType="match"
+ 
++if command -v idn &> /dev/null; then
++    IDN=idn
++else
++    IDN=idn2
++fi
++
+ colfile="/opt/pihole/COL_TABLE"
+ source "${colfile}"
+ 
+@@ -98,7 +104,7 @@ options=$(sed -E 's/ ?-(bp|adlists?|all|exact) ?//g' <<< "${options}")
+ case "${options}" in
+     ""             ) str="No domain specified";;
+     *" "*          ) str="Unknown query option specified";;
+-    *[![:ascii:]]* ) domainQuery=$(idn2 "${options}");;
++    *[![:ascii:]]* ) domainQuery=$($IDN "${options}");;
+     *              ) domainQuery="${options}";;
+ esac
+ 
+diff --git a/advanced/Scripts/webpage.sh b/advanced/Scripts/webpage.sh
+index c3dede0..bf1b751 100755
+--- a/advanced/Scripts/webpage.sh
++++ b/advanced/Scripts/webpage.sh
+@@ -273,7 +273,11 @@ Reboot() {
+ }
+ 
+ RestartDNS() {
+-    /usr/local/bin/pihole restartdns
++    if command -v pihole &> /dev/null; then
++        pihole restartdns
++    else
++        /usr/local/bin/pihole restartdns
++    fi
+ }
+ 
+ SetQueryLogOptions() {
+diff --git a/gravity.sh b/gravity.sh
+index 50c3778..de24881 100755
+--- a/gravity.sh
++++ b/gravity.sh
+@@ -19,7 +19,12 @@ regexconverter="/opt/pihole/wildcard_regex_converter.sh"
+ source "${regexconverter}"
+ 
+ basename="pihole"
+-PIHOLE_COMMAND="/usr/local/bin/${basename}"
++
++if command -v pihole &> /dev/null; then
++    PIHOLE_COMMAND="${basename}"
++else
++    PIHOLE_COMMAND="/usr/local/bin/${basename}"
++fi
+ 
+ piholeDir="/etc/${basename}"
+ 
+@@ -75,15 +80,19 @@ fi
+ 
+ # Determine if DNS resolution is available before proceeding
+ gravity_CheckDNSResolutionAvailable() {
+-  local lookupDomain="pi.hole"
++  local lookupDomain="pi.hole" timeoutCommand
+ 
+   # Determine if $localList does not exist
+   if [[ ! -e "${localList}" ]]; then
+     lookupDomain="raw.githubusercontent.com"
+   fi
+ 
++  if command -v timeout &> /dev/null; then
++    timeoutCommand="timeout 1"
++  fi
++
+   # Determine if $lookupDomain is resolvable
+-  if timeout 1 getent hosts "${lookupDomain}" &> /dev/null; then
++  if ${timeoutCommand} getent hosts "${lookupDomain}" &> /dev/null; then
+     # Print confirmation of resolvability if it had previously failed
+     if [[ -n "${secs:-}" ]]; then
+       echo -e "${OVER}  ${TICK} DNS resolution is now available\\n"
+@@ -97,7 +106,7 @@ gravity_CheckDNSResolutionAvailable() {
+   # If the /etc/resolv.conf contains resolvers other than 127.0.0.1 then the local dnsmasq will not be queried and pi.hole is NXDOMAIN.
+   # This means that even though name resolution is working, the getent hosts check fails and the holddown timer keeps ticking and eventualy fails
+   # So we check the output of the last command and if it failed, attempt to use dig +short as a fallback
+-  if timeout 1 dig +short "${lookupDomain}" &> /dev/null; then
++  if ${timeoutCommand} dig +short "${lookupDomain}" &> /dev/null; then
+     if [[ -n "${secs:-}" ]]; then
+       echo -e "${OVER}  ${TICK} DNS resolution is now available\\n"
+     fi
+@@ -118,7 +127,7 @@ gravity_CheckDNSResolutionAvailable() {
+   # Ensure DNS server is given time to be resolvable
+   secs="120"
+   echo -ne "  ${INFO} Time until retry: ${secs}"
+-  until timeout 1 getent hosts "${lookupDomain}" &> /dev/null; do
++  until ${timeoutCommand} getent hosts "${lookupDomain}" &> /dev/null; do
+     [[ "${secs:-}" -eq 0 ]] && break
+     echo -ne "${OVER}  ${INFO} Time until retry: ${secs}"
+     : $((secs--))
+@@ -204,7 +213,7 @@ gravity_DownloadBlocklistFromUrl() {
+   local url="${1}" cmd_ext="${2}" agent="${3}" heisenbergCompensator="" patternBuffer str httpCode success=""
+ 
+   # Create temp file to store content on disk instead of RAM
+-  patternBuffer=$(mktemp -p "/tmp" --suffix=".phgpb")
++  patternBuffer=$(mktemp -p "/tmp")
+ 
+   # Determine if $saveLocation has read permission
+   if [[ -r "${saveLocation}" && $url != "file"* ]]; then
+@@ -493,6 +502,8 @@ gravity_ParseLocalDomains() {
+     hostname=$(< "/etc/hostname")
+   elif command -v hostname &> /dev/null; then
+     hostname=$(hostname -f)
++  elif command -v uci &> /dev/null; then
++    hostname=$(uci -q get system.@system[0].hostname)
+   else
+     echo -e "  ${CROSS} Unable to determine fully qualified domain name of host"
+     return 0
+diff --git a/pihole b/pihole
+index 8be03f7..7408115 100755
+--- a/pihole
++++ b/pihole
+@@ -115,7 +115,12 @@ restartDNS() {
+     else
+       svcOption="start"
+     fi
+-    svc="service ${resolver} ${svcOption}"
++
++    if command -v service &> /dev/null; then
++        svc="service ${resolver} ${svcOption}"
++    else
++        svc="/etc/init.d/${resolver} ${svcOption}"
++    fi
+   fi
+ 
+   # Print output to Terminal, but not to Web Admin
+-- 
+2.18.0
+

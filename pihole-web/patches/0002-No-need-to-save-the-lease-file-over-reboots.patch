@@ -1,0 +1,26 @@
+From 7c2cd63f7c34051fa3964a4a56c4a6aa333c9956 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=D0=98=D0=BB=D1=8C=D1=8F=20=D0=A4=D0=B5=D0=B4=D0=B8=D0=BD?=
+ <fedin-ilja2010@ya.ru>
+Date: Mon, 10 Sep 2018 00:58:01 +0400
+Subject: [PATCH 2/2] No need to save the lease file over reboots
+
+---
+ settings.php | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/settings.php b/settings.php
+index d7329370..48624e85 100644
+--- a/settings.php
++++ b/settings.php
+@@ -481,7 +481,7 @@ if (isset($_GET['tab']) && in_array($_GET['tab'], array("sysadmin", "blocklists"
+                             if ($DHCP) {
+                                 // Read leases file
+                                 $leasesfile = true;
+-                                $dhcpleases = @fopen('/etc/pihole/dhcp.leases', 'r');
++                                $dhcpleases = @fopen('/var/run/pihole/dhcp.leases', 'r');
+                                 if (!is_resource($dhcpleases))
+                                     $leasesfile = false;
+ 
+-- 
+2.18.0
+

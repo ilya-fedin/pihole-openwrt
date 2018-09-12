@@ -1,0 +1,26 @@
+From b9d7456dce710e5c99a39f47fdac107d34a7b4d2 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=D0=98=D0=BB=D1=8C=D1=8F=20=D0=A4=D0=B5=D0=B4=D0=B8=D0=BD?=
+ <fedin-ilja2010@ya.ru>
+Date: Mon, 10 Sep 2018 00:58:57 +0400
+Subject: [PATCH 2/2] No need to save the lease file over reboots
+
+---
+ advanced/Scripts/webpage.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/advanced/Scripts/webpage.sh b/advanced/Scripts/webpage.sh
+index bf1b751..de6a5f2 100755
+--- a/advanced/Scripts/webpage.sh
++++ b/advanced/Scripts/webpage.sh
+@@ -322,7 +322,7 @@ ProcessDHCPSettings() {
+ dhcp-authoritative
+ dhcp-range=${DHCP_START},${DHCP_END},${leasetime}
+ dhcp-option=option:router,${DHCP_ROUTER}
+-dhcp-leasefile=/etc/pihole/dhcp.leases
++dhcp-leasefile=/var/run/pihole/dhcp.leases
+ #quiet-dhcp
+ " > "${dhcpconfig}"
+ 
+-- 
+2.18.0
+

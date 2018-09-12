@@ -1,0 +1,30 @@
+From e3a46048e5f8a40cc97e0d93cf059d66904a918d Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=D0=98=D0=BB=D1=8C=D1=8F=20=D0=A4=D0=B5=D0=B4=D0=B8=D0=BD?=
+ <fedin-ilja2010@ya.ru>
+Date: Thu, 6 Sep 2018 21:47:46 +0400
+Subject: [PATCH 1/2] Fix hostname display on OpenWrt
+
+---
+ settings.php | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/settings.php b/settings.php
+index 73783d44..d7329370 100644
+--- a/settings.php
++++ b/settings.php
+@@ -102,7 +102,11 @@ if (isset($setupVars["IPV6_ADDRESS"])) {
+ } else {
+     $piHoleIPv6 = "unknown";
+ }
+-$hostname = trim(file_get_contents("/etc/hostname"), "\x00..\x1F");
++if(`command -v uci`) {
++    $hostname = trim(exec("uci -q get system.@system[0].hostname"), "\x00..\x1F");
++} else {
++    $hostname = trim(file_get_contents("/etc/hostname"), "\x00..\x1F");
++}
+ ?>
+ 
+ <?php
+-- 
+2.18.0
+

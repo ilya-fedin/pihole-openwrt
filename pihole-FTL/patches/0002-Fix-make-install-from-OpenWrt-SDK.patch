@@ -1,0 +1,35 @@
+From f70e8a1818a40e6775c01743b260b8f7cca9ff99 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=D0=98=D0=BB=D1=8C=D1=8F=20=D0=A4=D0=B5=D0=B4=D0=B8=D0=BD?=
+ <fedin-ilja2010@ya.ru>
+Date: Sat, 1 Sep 2018 01:28:03 +0400
+Subject: [PATCH 2/3] Fix make install from OpenWrt SDK
+
+---
+ Makefile | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index cd25f04..f3723ae 100644
+--- a/Makefile
++++ b/Makefile
+@@ -109,11 +109,14 @@ version.h: version~
+ 	@echo '#define GIT_HASH "$(GIT_HASH)"' >> "$@"
+ 	@echo "Making FTL version on branch $(GIT_BRANCH) - $(GIT_VERSION) ($(GIT_DATE))"
+ 
+-prefix=/usr
++PREFIX=/usr
++DESTDIR=
++SETCAP=1
+ 
+ # install target just installs the executable
+ # other requirements (correct ownership of files, etc.) is managed by
+ # the service script on sudo service pihole-FTL (re)start
+ install: pihole-FTL
+-	install -m 0755 pihole-FTL $(prefix)/bin
+-	/sbin/setcap CAP_NET_BIND_SERVICE,CAP_NET_RAW,CAP_NET_ADMIN+eip $(prefix)/bin/pihole-FTL
++	install -d $(DESTDIR)$(PREFIX)/bin
++	install -m 0755 pihole-FTL $(DESTDIR)$(PREFIX)/bin
++	[ $(SETCAP) -ne 1 ] || /sbin/setcap CAP_NET_BIND_SERVICE,CAP_NET_RAW,CAP_NET_ADMIN+eip $(DESTDIR)$(PREFIX)/bin/pihole-FTL
+-- 
+2.18.0
+

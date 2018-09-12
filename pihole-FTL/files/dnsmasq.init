@@ -1,0 +1,21 @@
+#!/bin/sh /etc/rc.common
+
+START=22
+
+start() {
+	pidof pihole-FTL >/dev/null || \
+		exec /etc/init.d/pihole-FTL start
+
+	exit 0
+}
+
+stop() {
+	pidof pihole-FTL >/dev/null && \
+		exec /etc/init.d/pihole-FTL stop
+
+	exit 0
+}
+
+reload() {
+	exec /etc/init.d/pihole-FTL reload
+}
