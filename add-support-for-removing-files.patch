@@ -1,0 +1,27 @@
+diff -ruN a/Makefile b/Makefile
+--- a/Makefile	2018-07-31 15:32:25.000000000 +0400
++++ b/Makefile	2018-09-09 06:04:02.854413224 +0400
+@@ -157,7 +157,7 @@
+ 	@echo Finalizing root filesystem...
+ 
+ 	$(CP) $(TARGET_DIR) $(TARGET_DIR_ORIG)
+-	$(call prepare_rootfs,$(TARGET_DIR),$(USER_FILES))
++	$(call prepare_rootfs,$(TARGET_DIR),$(USER_FILES),$(FILES_REMOVE))
+ 
+ build_image: FORCE
+ 	@echo
+diff -ruN a/include/rootfs.mk b/include/rootfs.mk
+--- a/include/rootfs.mk	2018-05-17 04:04:40.000000000 +0400
++++ b/include/rootfs.mk	2018-09-09 06:03:36.856640042 +0400
+@@ -64,6 +64,11 @@
+ 	$(if $(2),@if [ -d '$(2)' ]; then \
+ 		$(call file_copy,$(2)/.,$(1)); \
+ 	fi)
++	$(if $(3),@if [ -f '$(3)' ]; then \
++		while read filename; do				\
++		  rm -rfv "$(TARGET_DIR)$$filename";	\
++		done < $(3); \
++	fi)
+ 	@mkdir -p $(1)/etc/rc.d
+ 	@mkdir -p $(1)/var/lock
+ 	@( \

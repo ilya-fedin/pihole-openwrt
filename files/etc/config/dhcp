@@ -1,0 +1,9 @@
+config dnsmasq
+	option boguspriv	0
+	option localise_queries	1
+	option rebind_protection 0
+	option nonwildcard	0
+	option noresolv	1
+
+config FTL FTL
+	option interface	lan

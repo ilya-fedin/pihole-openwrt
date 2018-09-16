@@ -1,0 +1,2 @@
+59 1 * * 7 pihole updateGravity
+@daily /usr/sbin/logrotate /etc/logrotate.conf
